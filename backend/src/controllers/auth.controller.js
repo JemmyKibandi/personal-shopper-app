@@ -1,88 +1,112 @@
-// src/controllers/auth.controller.js
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import { sendOTPEmail } from "../utils/sendEmail.js";
 
-// REGISTER
+/*
+REGISTER USER
+*/
 export const register = async (req, res) => {
   try {
-    const { fullName, phone, email, password } = req.body;
+    const { fullName, phone, email, password } = req.body || {};
 
-    // Check if email exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(400).json({ message: "Email already exists" });
+    /* 1️⃣ Validate name (must contain space) */
+    if (!fullName || !fullName.includes(" ")) {
+      return res.status(400).json({
+        message: "Full name must include first and last name"
+      });
+    }
 
+    /* 2️⃣ Validate email format */
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      return res.status(400).json({
+        message: "Invalid email format"
+      });
+    }
+
+    /* 3️⃣ Validate phone number */
+    const phoneRegex = /^[0-9]{10,15}$/;
+    if (!phone || !phoneRegex.test(phone)) {
+      return res.status(400).json({
+        message: "Invalid phone number"
+      });
+    }
+
+    /* 4️⃣ Check if user exists in MongoDB */
+    const existingUser = await User.findOne({
+      $or: [{ email }, { phone }]
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        message: "User with this email or phone already exists"
+      });
+    }
+
+    /* 5️⃣ Hash password */
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate OTP
-    const otp = crypto.randomInt(100000, 999999).toString();
-
-    const user = await User.create({
+    /* 6️⃣ Create user */
+    const newUser = await User.create({
       fullName,
       phone,
       email,
-      password: hashedPassword,
-      otp,
-      otpExpires: Date.now() + 10 * 60 * 1000, // 10 mins
+      password: hashedPassword
     });
-
-    await sendOTPEmail(email, otp);
 
     res.status(201).json({
-      message: "User registered. Verify OTP sent to email.",
+      message: "User registered successfully",
+      userId: newUser._id
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      message: error.message
+    });
   }
 };
-export const verifyOTP = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (user.otp !== otp || user.otpExpires < Date.now()) {
-      return res.status(400).json({ message: "Invalid or expired OTP" });
-    }
-
-    user.isVerified = true;
-    user.otp = null;
-    user.otpExpires = null;
-
-    await user.save();
-
-    res.json({ message: "Account verified successfully" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+/*
+LOGIN USER
+*/
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
+    /* 1️⃣ Check MongoDB for user */
     const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
 
-    if (!user.isVerified)
-      return res.status(403).json({ message: "Verify your email first" });
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Invalid password" });
+    /* 2️⃣ Compare password */
+    const passwordMatch = await bcrypt.compare(password, user.password);
 
+    if (!passwordMatch) {
+      return res.status(400).json({
+        message: "Invalid credentials"
+      });
+    }
+
+    /* 3️⃣ Generate JWT */
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    res.json({ token });
+    res.status(200).json({
+      message: "Login successful",
+      token
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      message: error.message
+    });
   }
 };
