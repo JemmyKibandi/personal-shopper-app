@@ -1,0 +1,32 @@
+body {
+  background: radial-gradient(
+      circle at 20% 20%,
+      rgba(180,180,180,0.2),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 80% 80%,
+      rgba(120,120,120,0.2),
+      transparent 40%
+    ),
+    linear-gradient(
+      180deg,
+      #f3f4f6,
+      #e5e7eb
+    );
+
+  min-height: 100vh;
+}
+
+/* grid overlay like the Amerce hero */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+}

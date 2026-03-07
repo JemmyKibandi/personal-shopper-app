@@ -74,34 +74,54 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body || {};
 
-    /* 1️⃣ Check MongoDB for user */
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found"
+    /* 1️⃣ Validate email format */
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      return res.status(400).json({
+        message: "Invalid email format"
       });
     }
 
-    /* 2️⃣ Compare password */
-    const passwordMatch = await bcrypt.compare(password, user.password);
-
-    if (!passwordMatch) {
+    if (!password) {
       return res.status(400).json({
+        message: "Password is required"
+      });
+    }
+
+    /* 2️⃣ Check MongoDB for user */
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({
         message: "Invalid credentials"
       });
     }
 
-    /* 3️⃣ Generate JWT */
+    /* 3️⃣ Compare password */
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      return res.status(401).json({
+        message: "Invalid credentials"
+      });
+    }
+
+    /* 4️⃣ Generate JWT */
     const token = jwt.sign(
-      { id: user._id },
+      { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
     res.status(200).json({
       message: "Login successful",
-      token
+      token,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role
+      }
     });
 
   } catch (error) {
